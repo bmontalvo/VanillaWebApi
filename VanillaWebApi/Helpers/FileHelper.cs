@@ -24,7 +24,7 @@ namespace VanillaWebApi.Helpers
         {
             get
             {
-                return ConfigurationManager.AppSettings["RootFolder"] ?? AssemblyDirectory + "\\..\\..\\Testie";
+                return ConfigurationManager.AppSettings["RootFolder"] ?? "C:\\";
             }
         }
 
@@ -122,14 +122,6 @@ namespace VanillaWebApi.Helpers
                     });
                     fileItem.actions.Add(new ActionItem
                     {
-                        name = "download-file",
-                        title = "Download File",
-                        method = "GET",
-                        href = baseUrl + "/file/" + identifier + "/download",
-                        type = "application/json",
-                    });
-                    fileItem.actions.Add(new ActionItem
-                    {
                         name = "delete-file",
                         title = "Delete File",
                         method = "GET",
@@ -175,7 +167,7 @@ namespace VanillaWebApi.Helpers
                     if (!sourceAttr.HasFlag(FileAttributes.ReadOnly))
                     {
                         var fInfo = new FileInfo(sourcePath);
-                        fInfo.MoveTo(destPath);
+                        fInfo.MoveTo(destPath + "\\" + fInfo.Name);
 
                         successful = true;
                     }
@@ -187,7 +179,7 @@ namespace VanillaWebApi.Helpers
                 else if (sourceAttr.HasFlag(FileAttributes.Archive))
                 {
                     var dInfo = new DirectoryInfo(sourcePath);
-                    dInfo.MoveTo(destPath);
+                    dInfo.MoveTo(destPath + "\\" + dInfo.Name);
 
                     successful = true;
                 }

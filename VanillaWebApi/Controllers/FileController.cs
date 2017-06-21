@@ -13,7 +13,7 @@ namespace VanillaWebApi.Controllers
 {
     public class FileController : ApiController
     {
-        [Route("file/{id}/download")]
+        [Route("file/{id}")]
         [HttpGet]
         public HttpResponseMessage Download(string id)
         {

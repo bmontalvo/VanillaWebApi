@@ -5,88 +5,153 @@
     <meta charset="utf-8" />
     <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
     <style>
-    #feedback { font-size: 1.4em; }
-    #selectable .ui-selecting { background: #FECA40; }
-    #selectable .ui-selected { background: #F39814; color: white; }
-    #selectable { list-style-type: none; margin: 0; padding: 0; width: 60%; }
-    #selectable li { margin: 3px; padding: 0.4em; font-size: 1.4em; height: 18px; }
+      .ui-icon {
+        zoom: 150%;
+        -moz-transform: scale(1.5);
+        -webkit-zoom: 1.5;
+        -ms-zoom: 1.5;
+      }
+      .file-item {
+        cursor: pointer;
+        font-weight: bold;
+        width: 150px;
+        height: 150px;
+        padding: 0.5em;
+        float: left;
+        background-color: Cornsilk;
+        margin: 10px 10px 10px 0;
+      }
+      #list {
+        list-style-type: none;
+      }
     </style>
     <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 </head>
 <body>
   <div class="widget">
-    <ol id="selectable"></ol>
+    <ul id="list"></ol>
   </div>
 
   <script>
-    $.get('/directory', function (data) {
-        var result = data;
-        result.map(function (item) {
-          var actions = item.actions.map(function (action) {
-            var actionClick;
-            var actionIcon;
-            switch (action.name) {
-              case 'copy-file':
-                actionIcon = 'ui-icon-copy';
-                actionClick = function () {
-                  alert('copy!');
-                };
-                break;
+    var refreshData = function () {
+      $('#list').empty();
 
-              case 'move-file':
-                actionIcon = 'ui-icon-copy';
-                actionClick = function () {
-                  alert('move!');
-                };
-                break;
+      var url = '/directory';
 
-              case 'delete-file':
-                actionIcon = 'ui-icon-trash';
-                actionClick = function () {
-                  alert('delete!');
-                };
-                break;
+      if (window.location.hash) {
+        url += '/' + window.location.hash.substr(1);
+      }
 
-              case 'download-file':
-                actionIcon = 'ui-icon-arrowthickstop-1-s';
-                actionClick = function () {
-                  alert('download!');
-                };
-                break;
+      $.get(url, function (data) {
+          var fileItems = data;
+          fileItems.map(function (item) {
 
+            var listItem = $('<li />',
+            {
+              id: item.id,
+              class: 'file-item',
+              text: item.displayName,
+              click: function () {
+                // If the item is a folder, set the hash to the ID
+                if (item.isFolder) {
+                  window.location = '#' + item.id;
+                  refreshData();
+                }
+                else {  // else, it's a file & let the user download it
+//                  window.location = item.self;
+                }
+              }
+            });
+
+            if (item.isFolder) {
+              $('<i class="ui-icon ui-icon-folder-open"></i>').prependTo(listItem);
+
+              listItem.droppable({
+                hoverClass: "ui-state-active",
+                drop: function(event, ui) {
+                  var destinationId = $(this).attr("id");
+                  var moveMethod = ui.draggable.attr("data-move-method");
+                  var moveHref = ui.draggable.attr("data-move-href");
+
+                  $.ajax({
+                    method: moveMethod,
+                    url: moveHref,
+                    contentType: "application/json",
+                    data: JSON.stringify(destinationId),
+                    success: function(result) {
+                      alert(result);
+                      refreshData();
+                    }
+                  });
+                }
+              });
+            }
+            else {
+              $('<i class="ui-icon ui-icon-document"></i>').prependTo(listItem);
             }
 
-            var actionButton = $('<button />',
-            {
-              title: action.title,
-              click: actionClick,
+            var actions = item.actions.filter(function (action) {
+              // If the action is move, then we let the item become draggable & filter it out
+              if (action.name.split("-")[0] == 'move') {
+                listItem.attr('data-move-href', action.href);
+                listItem.attr('data-move-method', action.method);
+                listItem.draggable({
+                  stop: function(event, ui) {
+                    // event.toElement is the element that was responsible
+                    // for triggering this event. The handle, in case of a draggable.
+                    $( event.originalEvent.target ).one('click', function(e){ e.stopImmediatePropagation(); } );
+                  }
+                });
+                return false;
+              }
+              else {
+                return true;
+              }
+            }).map(function (action) {
+              var actionIcon;
+              switch (action.name.split("-")[0]) {
+                case 'copy':
+                  actionIcon = 'ui-icon-copy';
+                  break;
+                case 'delete':
+                  actionIcon = 'ui-icon-trash';
+                  break;
+              }
+
+              var actionClick = function () {
+                $.ajax({
+                  method: action.method,
+                  url: action.href,
+                  success: function(result) {
+                    alert(result);
+                    refreshData();
+                  }
+                });
+              };
+
+              var actionButton = $('<button />',
+              {
+                title: action.title,
+                click: actionClick,
+              });
+              actionButton.button({ icons: { primary: actionIcon }});
+
+              return actionButton;
             });
-            actionButton.button({icons: { primary: actionIcon }});
 
-            return actionButton;
+            actions.map(function (action) {
+              action.appendTo(listItem);
+            });
+
+            $("#list").append(listItem);
+
+            listItem.draggable();
           });
+      });
+    };
 
-          var listItem = $('<li />',
-          {
-            class: 'ui-widget-content',
-            text: item.displayName
-          });
-
-          actions.map(function (action) {
-            action.appendTo(listItem);
-          });
-
-          $("#selectable").append(listItem);
-
-//            item.actions.map(function (action) {
-//                $("#selectable").append('')
-//            });
-
-        });
-    }).done(function () {
-        $("#selectable").selectable();
-    });
+    refreshData();
   </script>
 </body>
 </html>
