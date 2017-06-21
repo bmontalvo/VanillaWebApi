@@ -71,34 +71,35 @@ namespace VanillaWebApi.Controllers
             }
         }
 
-        //public Task<HttpResponseMessage> Post()
-        //{
-        //    var rootFolder = ConfigurationManager.AppSettings["RootFolder"] ?? "C:\\";
+        [Route("file/{id}/upload")]
+        [HttpPost]
+        public Task<HttpResponseMessage> Upload()
+        {
+            var rootFolder = ConfigurationManager.AppSettings["RootFolder"] ?? "C:\\";
 
-        //    HttpRequestMessage request = this.Request;
-        //    if (!request.Content.IsMimeMultipartContent())
-        //    {
-        //        throw new HttpResponseException(HttpStatusCode.UnsupportedMediaType);
-        //    }
+            if (!Request.Content.IsMimeMultipartContent())
+            {
+                throw new HttpResponseException(HttpStatusCode.UnsupportedMediaType);
+            }
 
-        //    string root = System.Web.HttpContext.Current.Server.MapPath(rootFolder);
-        //    var provider = new MultipartFormDataStreamProvider(root);
+            string root = System.Web.HttpContext.Current.Server.MapPath(rootFolder);
+            var provider = new MultipartFormDataStreamProvider(root);
 
-        //    var task = request.Content.ReadAsMultipartAsync(provider).
-        //        ContinueWith<HttpResponseMessage>(o =>
-        //        {
+            var task = Request.Content.ReadAsMultipartAsync(provider).
+                ContinueWith<HttpResponseMessage>(o =>
+                {
 
-        //            string file1 = provider.FileData.First().LocalFileName;
-        //            // this is the file name on the server where the file was saved 
+                    string file1 = provider.FileData.First().LocalFileName;
+                    // this is the file name on the server where the file was saved
 
-        //            return new HttpResponseMessage()
-        //            {
-        //                Content = new StringContent("File uploaded.")
-        //            };
-        //        }
-        //    );
-        //    return task;
-        //}
+                    return new HttpResponseMessage()
+                    {
+                        Content = new StringContent("File uploaded.")
+                    };
+                }
+            );
+            return task;
+        }
 
         [Route("file/{id}/copy/")]
         [HttpPost]

@@ -2,33 +2,49 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
+using System.Reflection;
 using VanillaWebApi.Models;
 
 namespace VanillaWebApi.Helpers
 {
     public static class FileHelper
     {
-        public static string rootFolder = ConfigurationManager.AppSettings["RootFolder"] ?? "C:\\";
+        public static string AssemblyDirectory
+        {
+            get
+            {
+                string codeBase = Assembly.GetExecutingAssembly().CodeBase;
+                UriBuilder uri = new UriBuilder(codeBase);
+                string path = Uri.UnescapeDataString(uri.Path);
+                return Path.GetDirectoryName(path);
+            }
+        }
+
+        public static string RootFolder
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["RootFolder"] ?? AssemblyDirectory + "\\..\\..\\Testie";
+            }
+        }
 
         public static IEnumerable<FileItem> GetFileItemsForDirectory(string baseUrl, string directory = null)
         {
-            directory = directory ?? rootFolder;
+            directory = directory ?? RootFolder;
 
-            var dirInfo = new DirectoryInfo(directory);
-
-            var sInfos = dirInfo.GetFileSystemInfos();
+            var rootDirInfo = new DirectoryInfo(directory);
 
             var toReturn = new List<FileItem>();
 
             // Add the parent directory if we are not on the root folder
-            if (!directory.Equals(rootFolder, StringComparison.InvariantCultureIgnoreCase))
+            if (!directory.Equals(RootFolder, StringComparison.InvariantCultureIgnoreCase))
             {
-                var identifier = dirInfo.Parent.FullName.Base64Encode();
+                var identifier = rootDirInfo.Parent.FullName.Base64Encode();
                 var parent = new FileItem
                 {
                     id = identifier,
                     displayName = "..",
-                    date = dirInfo.Parent.LastWriteTimeUtc,
+                    date = rootDirInfo.Parent.LastWriteTimeUtc,
                     isFolder = true,
                     self = baseUrl + "/directory/" +  identifier
                 };
@@ -36,91 +52,93 @@ namespace VanillaWebApi.Helpers
                 toReturn.Add(parent);
             }
 
-            foreach (var sInfo in sInfos)
+            // Add directories
+            foreach(var dir in rootDirInfo.GetDirectories())
             {
-                var type = sInfo.GetType();
-
-                if (type == typeof(FileInfo) || type == typeof(DirectoryInfo))
+                var identifier = dir.FullName.Base64Encode();
+                var dirItem = new FileItem
                 {
-                    var identifier = sInfo.FullName.Base64Encode();
-                    var fileItem = new FileItem
+                    id = identifier,
+                    displayName = dir.Name,
+                    date = dir.LastWriteTimeUtc,
+                    isFolder = true,
+                    self = baseUrl + "/directory/" + identifier
+                };
+                dirItem.actions.Add(new ActionItem
+                {
+                    name = "move-directory",
+                    title = "Move Directory",
+                    method = "POST",
+                    href = baseUrl + "/directory/" + identifier + "/move",
+                    type = "application/json",
+                    fields = new List<Field>
                     {
-                        id = identifier,
-                        displayName = sInfo.Name,
-                        date = sInfo.LastWriteTimeUtc
-                    };
+                        new Field { name = "destinationId", type = "string" }
+                    }
+                });
 
-                    if (type == typeof(FileInfo))
+                toReturn.Add(dirItem);
+            }
+
+            // Add files
+            foreach (var file in rootDirInfo.GetFiles())
+            {
+                var identifier = file.FullName.Base64Encode();
+                var fileItem = new FileItem
+                {
+                    id = identifier,
+                    displayName = file.Name,
+                    date = file.LastWriteTimeUtc,
+                    self = baseUrl + "/file/" + identifier,
+                    isReadOnly = file.IsReadOnly,
+                    length = file.Length,
+                };
+                fileItem.actions.Add(new ActionItem
+                {
+                    name = "copy-file",
+                    title = "Copy File",
+                    method = "POST",
+                    href = baseUrl + "/file/" + identifier + "/copy/",
+                    type = "application/json",
+                    fields = new List<Field>
                     {
-                        fileItem.isReadOnly = ((FileInfo)sInfo).IsReadOnly;
-                        fileItem.length = ((FileInfo)sInfo).Length;
-                        fileItem.self = baseUrl + "/file/" + identifier;
-                        fileItem.actions.Add(new ActionItem
-                        {
-                            name = "copy-file",
-                            title = "Copy File",
-                            method = "POST",
-                            href = baseUrl + "/file/" + identifier + "/copy/",
-                            type = "application/json",
-                            fields = new List<Field>
-                            {
-                                new Field { name = "destinationId", type = "string" }
-                            }
-                        });
+                        new Field { name = "destinationId", type = "string" }
+                    }
+                });
 
-                        if (!fileItem.isReadOnly)
+                if (!fileItem.isReadOnly)
+                {
+                    fileItem.actions.Add(new ActionItem
+                    {
+                        name = "move-file",
+                        title = "Move File",
+                        method = "POST",
+                        href = baseUrl + "/file/" + identifier + "/move",
+                        type = "application/json",
+                        fields = new List<Field>
                         {
-                            fileItem.actions.Add(new ActionItem
-                            {
-                                name = "download-file",
-                                title = "Download File",
-                                method = "GET",
-                                href = baseUrl + "/file/" + identifier + "/download",
-                                type = "application/json",
-                            });
-                            fileItem.actions.Add(new ActionItem
-                            {
-                                name = "move-file",
-                                title = "Move File",
-                                method = "POST",
-                                href = baseUrl + "/file/" + identifier + "/move",
-                                type = "application/json",
-                                fields = new List<Field>
-                                {
-                                    new Field { name = "destinationId", type = "string" }
-                                }
-                            });
-                            fileItem.actions.Add(new ActionItem
-                            {
-                                name = "delete-file",
-                                title = "Delete File",
-                                method = "GET",
-                                href = baseUrl + "/file/" + identifier + "/delete",
-                                type = "application/json",
-                            });
-
+                            new Field { name = "destinationId", type = "string" }
                         }
-                    }
-                    else
+                    });
+                    fileItem.actions.Add(new ActionItem
                     {
-                        fileItem.isFolder = true;
-                        fileItem.self = baseUrl + "/directory/" + identifier;
-                        fileItem.actions.Add(new ActionItem
-                        {
-                            name = "move-directory",
-                            title = "Move Directory",
-                            method = "POST",
-                            href = baseUrl + "/directory/" + identifier + "/move",
-                            type = "application/json",
-                            fields = new List<Field>
-                            {
-                                new Field { name = "destinationId", type = "string" }
-                            }
-                        });
-                    }
-
-                    toReturn.Add(fileItem);
+                        name = "download-file",
+                        title = "Download File",
+                        method = "GET",
+                        href = baseUrl + "/file/" + identifier + "/download",
+                        type = "application/json",
+                    });
+                    fileItem.actions.Add(new ActionItem
+                    {
+                        name = "delete-file",
+                        title = "Delete File",
+                        method = "GET",
+                        href = baseUrl + "/file/" + identifier + "/delete",
+                        type = "application/json",
+                    });
                 }
+
+                toReturn.Add(fileItem);
             }
 
             return toReturn;

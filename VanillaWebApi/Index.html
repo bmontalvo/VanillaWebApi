@@ -15,17 +15,78 @@
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 </head>
 <body>
+  <div class="widget">
     <ol id="selectable"></ol>
+  </div>
 
-    <script>
-        $.get('/api/Default', function (data) {
-            var result = data;
-            result.map(function (item) {
-                $("#selectable").append('<li class="ui-widget-content">' + item.displayName + '</li>');
+  <script>
+    $.get('/directory', function (data) {
+        var result = data;
+        result.map(function (item) {
+          var actions = item.actions.map(function (action) {
+            var actionClick;
+            var actionIcon;
+            switch (action.name) {
+              case 'copy-file':
+                actionIcon = 'ui-icon-copy';
+                actionClick = function () {
+                  alert('copy!');
+                };
+                break;
+
+              case 'move-file':
+                actionIcon = 'ui-icon-copy';
+                actionClick = function () {
+                  alert('move!');
+                };
+                break;
+
+              case 'delete-file':
+                actionIcon = 'ui-icon-trash';
+                actionClick = function () {
+                  alert('delete!');
+                };
+                break;
+
+              case 'download-file':
+                actionIcon = 'ui-icon-arrowthickstop-1-s';
+                actionClick = function () {
+                  alert('download!');
+                };
+                break;
+
+            }
+
+            var actionButton = $('<button />',
+            {
+              title: action.title,
+              click: actionClick,
             });
-        }).done(function () {
-            $("#selectable").selectable();
+            actionButton.button({icons: { primary: actionIcon }});
+
+            return actionButton;
+          });
+
+          var listItem = $('<li />',
+          {
+            class: 'ui-widget-content',
+            text: item.displayName
+          });
+
+          actions.map(function (action) {
+            action.appendTo(listItem);
+          });
+
+          $("#selectable").append(listItem);
+
+//            item.actions.map(function (action) {
+//                $("#selectable").append('')
+//            });
+
         });
-    </script>
+    }).done(function () {
+        $("#selectable").selectable();
+    });
+  </script>
 </body>
 </html>

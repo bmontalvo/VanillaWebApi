@@ -36,7 +36,8 @@ namespace VanillaWebApi.Controllers
 
                 if (attr.HasFlag(FileAttributes.Directory))
                 {
-                    var toReturn = FileHelper.GetFileItemsForDirectory(RequestContext.VirtualPathRoot, path);
+                    var baseUrl = Request.RequestUri.Scheme + "://" + Request.RequestUri.Authority;
+                    var toReturn = FileHelper.GetFileItemsForDirectory(baseUrl, path);
 
                     return Json(toReturn);
                 }
