@@ -4,6 +4,7 @@ using System.Configuration;
 using System.IO;
 using System.Reflection;
 using VanillaWebApi.Models;
+using System.Linq;
 
 namespace VanillaWebApi.Helpers
 {
@@ -24,17 +25,26 @@ namespace VanillaWebApi.Helpers
         {
             get
             {
-                return ConfigurationManager.AppSettings["RootFolder"] ?? "C:\\";
+                return ConfigurationManager.AppSettings["RootFolder"] ?? AssemblyDirectory + "\\Testie";
             }
         }
 
-        public static IEnumerable<FileItem> GetFileItemsForDirectory(string baseUrl, string directory = null)
+        public static DirectoryItem GetFileItemsForDirectory(string baseUrl, string directory = null)
         {
             directory = directory ?? RootFolder;
 
             var rootDirInfo = new DirectoryInfo(directory);
 
-            var toReturn = new List<FileItem>();
+            var toReturn = new DirectoryItem();
+
+            toReturn.uploadAction = new ActionItem
+            {
+                name = "upload-file",
+                title = "Upload File",
+                method = "POST",
+                href = baseUrl + "/file/upload",
+                type = "multipart/form-data",
+            };
 
             // Add the parent directory if we are not on the root folder
             if (!directory.Equals(RootFolder, StringComparison.InvariantCultureIgnoreCase))
@@ -49,7 +59,7 @@ namespace VanillaWebApi.Helpers
                     self = baseUrl + "/directory/" +  identifier
                 };
 
-                toReturn.Add(parent);
+                toReturn.fileItems.Add(parent);
             }
 
             // Add directories
@@ -77,7 +87,7 @@ namespace VanillaWebApi.Helpers
                     }
                 });
 
-                toReturn.Add(dirItem);
+                toReturn.fileItems.Add(dirItem);
             }
 
             // Add files
@@ -93,19 +103,8 @@ namespace VanillaWebApi.Helpers
                     isReadOnly = file.IsReadOnly,
                     length = file.Length,
                 };
-                fileItem.actions.Add(new ActionItem
-                {
-                    name = "copy-file",
-                    title = "Copy File",
-                    method = "POST",
-                    href = baseUrl + "/file/" + identifier + "/copy/",
-                    type = "application/json",
-                    fields = new List<Field>
-                    {
-                        new Field { name = "destinationId", type = "string" }
-                    }
-                });
 
+                // Move & Delete actions only if file isn't ReadOnly
                 if (!fileItem.isReadOnly)
                 {
                     fileItem.actions.Add(new ActionItem
@@ -130,7 +129,28 @@ namespace VanillaWebApi.Helpers
                     });
                 }
 
-                toReturn.Add(fileItem);
+                fileItem.actions.Add(new ActionItem
+                {
+                    name = "download-file",
+                    title = "Download File",
+                    method = "GET",
+                    href = baseUrl + "/file/" + identifier,
+                    type = "application/json",
+                });
+                fileItem.actions.Add(new ActionItem
+                {
+                    name = "copy-file",
+                    title = "Copy File",
+                    method = "POST",
+                    href = baseUrl + "/file/" + identifier + "/copy/",
+                    type = "application/json",
+                    fields = new List<Field>
+                    {
+                        new Field { name = "destinationId", type = "string" }
+                    }
+                });
+
+                toReturn.fileItems.Add(fileItem);
             }
 
             return toReturn;

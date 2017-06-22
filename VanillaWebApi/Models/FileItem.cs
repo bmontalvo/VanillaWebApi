@@ -1,7 +1,19 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace VanillaWebApi.Models
 {
+    public class DirectoryItem
+    {
+        public DirectoryItem()
+        {
+            fileItems = new List<FileItem>();
+        }
+
+        public ActionItem uploadAction { get; set; }
+        public List<FileItem> fileItems { get; set; }
+    }
+
     public class FileItem : BaseObject
     {
         public string id { get; set; }

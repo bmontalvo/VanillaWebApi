@@ -11,29 +11,59 @@
         -webkit-zoom: 1.5;
         -ms-zoom: 1.5;
       }
+      .thin-text {
+        font-weight: lighter;
+        font-style: italic;
+      }
       .file-item {
         cursor: pointer;
         font-weight: bold;
-        width: 150px;
-        height: 150px;
+        width: 450px;
+        height: 70px;
         padding: 0.5em;
         float: left;
         background-color: Cornsilk;
         margin: 10px 10px 10px 0;
       }
+      .file-item-button {
+        float: right;
+      }
       #list {
         list-style-type: none;
+        width: 450px;
       }
     </style>
     <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 </head>
 <body>
-  <div class="widget">
+  <div>
+    <span>File</span>
+    <input type="file" id="file" name="file" />
+    <input id="uploadbtn" type="button" value="Upload" />
+  </div>
+  <div>
     <ul id="list"></ol>
   </div>
 
   <script>
+    $('#uploadbtn').click(function () {
+      var filename = $('#file').val();
+      $.ajax({
+            type: "POST",
+            url: "http://localhost:57544/directory/home/upload/",
+            enctype: 'multipart/form-data',
+            cache: false,
+            contentType: false,
+            processData: false,
+            contentDisposition: filename,
+            data: new FormData($('#file')),
+            success: function () {
+                alert("Data Uploaded: ");
+            }
+        });
+    });
+
     var refreshData = function () {
       $('#list').empty();
 
@@ -44,28 +74,29 @@
       }
 
       $.get(url, function (data) {
-          var fileItems = data;
+          var fileItems = data.fileItems;
           fileItems.map(function (item) {
 
             var listItem = $('<li />',
             {
               id: item.id,
               class: 'file-item',
-              text: item.displayName,
-              click: function () {
-                // If the item is a folder, set the hash to the ID
+              text: item.displayName
+            });
+
+            var date = $('<span />').addClass('thin-text').html('<br /> ' + new Date(item.date).toLocaleString());
+            listItem.append(date);
+
+            if (item.isFolder) {
+              $('<i class="ui-icon ui-icon-folder-open"></i>').prependTo(listItem);
+
+              // If the user clicks a folder, set the hash to the ID
+              listItem.click(function () {
                 if (item.isFolder) {
                   window.location = '#' + item.id;
                   refreshData();
                 }
-                else {  // else, it's a file & let the user download it
-//                  window.location = item.self;
-                }
-              }
-            });
-
-            if (item.isFolder) {
-              $('<i class="ui-icon ui-icon-folder-open"></i>').prependTo(listItem);
+              });
 
               listItem.droppable({
                 hoverClass: "ui-state-active",
@@ -89,6 +120,8 @@
             }
             else {
               $('<i class="ui-icon ui-icon-document"></i>').prependTo(listItem);
+              var size = $('<span />').addClass('thin-text').html('<br /> ' + item.length + ' bytes');
+              listItem.append(size);
             }
 
             var actions = item.actions.filter(function (action) {
@@ -96,38 +129,41 @@
               if (action.name.split("-")[0] == 'move') {
                 listItem.attr('data-move-href', action.href);
                 listItem.attr('data-move-method', action.method);
-                listItem.draggable({
-                  stop: function(event, ui) {
-                    // event.toElement is the element that was responsible
-                    // for triggering this event. The handle, in case of a draggable.
-                    $( event.originalEvent.target ).one('click', function(e){ e.stopImmediatePropagation(); } );
-                  }
-                });
                 return false;
               }
               else {
                 return true;
               }
             }).map(function (action) {
+              // All other actions are mapped to buttons
               var actionIcon;
               switch (action.name.split("-")[0]) {
                 case 'copy':
                   actionIcon = 'ui-icon-copy';
                   break;
+                case 'download':
+                    actionIcon = 'ui-icon-arrowthickstop-1-s';
+                    break;
                 case 'delete':
                   actionIcon = 'ui-icon-trash';
                   break;
               }
 
               var actionClick = function () {
-                $.ajax({
-                  method: action.method,
-                  url: action.href,
-                  success: function(result) {
-                    alert(result);
-                    refreshData();
-                  }
-                });
+                // Use AJAX to call all methods, except download
+                if (action.name.split("-")[0] != 'download') {
+                  $.ajax({
+                    method: action.method,
+                    url: action.href,
+                    success: function(result) {
+                      alert(result);
+                      refreshData();
+                    }
+                  });
+                }
+                else {
+                  window.location = action.href;
+                }
               };
 
               var actionButton = $('<button />',
@@ -136,7 +172,7 @@
                 click: actionClick,
               });
               actionButton.button({ icons: { primary: actionIcon }});
-
+              actionButton.attr('style', 'float: right');
               return actionButton;
             });
 

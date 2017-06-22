@@ -1,19 +1,17 @@
 ﻿using System;
-using System.Configuration;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Threading.Tasks;
 using System.Web.Http;
 using VanillaWebApi.Helpers;
 
 namespace VanillaWebApi.Controllers
 {
+    [RoutePrefix("file")]
     public class FileController : ApiController
     {
-        [Route("file/{id}")]
+        [Route("{id}")]
         [HttpGet]
         public HttpResponseMessage Download(string id)
         {
@@ -42,7 +40,7 @@ namespace VanillaWebApi.Controllers
                     return result;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // TODO: Log exception
                 var result = new HttpResponseMessage(HttpStatusCode.InternalServerError);
@@ -52,7 +50,7 @@ namespace VanillaWebApi.Controllers
             }
         }
 
-        [Route("file/{id}/delete")]
+        [Route("{id}/delete")]
         [HttpGet]
         public IHttpActionResult Delete(string id)
         {
@@ -71,37 +69,7 @@ namespace VanillaWebApi.Controllers
             }
         }
 
-        [Route("file/{id}/upload")]
-        [HttpPost]
-        public Task<HttpResponseMessage> Upload()
-        {
-            var rootFolder = ConfigurationManager.AppSettings["RootFolder"] ?? "C:\\";
-
-            if (!Request.Content.IsMimeMultipartContent())
-            {
-                throw new HttpResponseException(HttpStatusCode.UnsupportedMediaType);
-            }
-
-            string root = System.Web.HttpContext.Current.Server.MapPath(rootFolder);
-            var provider = new MultipartFormDataStreamProvider(root);
-
-            var task = Request.Content.ReadAsMultipartAsync(provider).
-                ContinueWith<HttpResponseMessage>(o =>
-                {
-
-                    string file1 = provider.FileData.First().LocalFileName;
-                    // this is the file name on the server where the file was saved
-
-                    return new HttpResponseMessage()
-                    {
-                        Content = new StringContent("File uploaded.")
-                    };
-                }
-            );
-            return task;
-        }
-
-        [Route("file/{id}/copy/")]
+        [Route("{id}/copy/")]
         [HttpPost]
         public IHttpActionResult Copy(string id, [FromBody]string destinationId)
         {
@@ -121,7 +89,7 @@ namespace VanillaWebApi.Controllers
             }
         }
 
-        [Route("file/{id}/move")]
+        [Route("{id}/move")]
         [HttpPost]
         public IHttpActionResult Move(string id, [FromBody]string destinationId)
         {
