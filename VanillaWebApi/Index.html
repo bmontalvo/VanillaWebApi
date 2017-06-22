@@ -38,35 +38,64 @@
 </head>
 <body>
   <div>
-    <span>File</span>
-    <input type="file" id="file" name="file" />
-    <input id="uploadbtn" type="button" value="Upload" />
+    <select onchange="sortItems(this)">
+      <option value="name">Name</option>
+      <option value="size">Size</option>
+      <option value="date">Date</option>
+    </select>
+  </div>
+  <div>
+    <form id="upload-file" enctype="multipart/form-data">
+      <input name="file" type="file" />
+      <input id="upload-button" type="button" value="Upload" />
+    </form>
   </div>
   <div>
     <ul id="list"></ol>
   </div>
 
   <script>
-    $('#uploadbtn').click(function () {
-      var filename = $('#file').val();
-      $.ajax({
-            type: "POST",
-            url: "http://localhost:57544/directory/home/upload/",
-            enctype: 'multipart/form-data',
+    var rootFolder;
+
+    var sortItems = function (sel) {
+      switch (sel.value) {
+        case 'name':
+          rootFolder.fileItems.sort(function (a, b) {
+              return a.displayName.localeCompare(b.displayName);
+          });
+          break;
+        case 'size':
+          rootFolder.fileItems.sort(function (a, b) {
+              return b.length - a.length;
+          });
+          break;
+        case 'date':
+          rootFolder.fileItems.sort(function (a, b) {
+              return new Date(b.date) - new Date(a.date);
+          });
+          break;
+      }
+
+      reloadList();
+    };
+
+    var uploadFile = function () {
+          var formData = new FormData($('#upload-file')[0]);
+          $.ajax({
+            type: rootFolder.uploadAction.method,
+            url: rootFolder.uploadAction.href,
             cache: false,
             contentType: false,
             processData: false,
-            contentDisposition: filename,
-            data: new FormData($('#file')),
-            success: function () {
-                alert("Data Uploaded: ");
+            data: formData,
+            success: function (data) {
+                alert(data);
+                refreshData();
             }
         });
-    });
+    };
 
     var refreshData = function () {
-      $('#list').empty();
-
       var url = '/directory';
 
       if (window.location.hash) {
@@ -74,116 +103,128 @@
       }
 
       $.get(url, function (data) {
-          var fileItems = data.fileItems;
-          fileItems.map(function (item) {
+          rootFolder = data;
 
-            var listItem = $('<li />',
-            {
-              id: item.id,
-              class: 'file-item',
-              text: item.displayName
-            });
+          // Update the upload action
+          $('#upload-button').unbind('click', uploadFile);
+          $('#upload-button').bind('click', uploadFile);
 
-            var date = $('<span />').addClass('thin-text').html('<br /> ' + new Date(item.date).toLocaleString());
-            listItem.append(date);
+          // Reload the list
+          reloadList();
+      });
+    };
 
+    var reloadList = function () {
+      $('#list').empty();
+
+      rootFolder.fileItems.map(function (item) {
+
+        var listItem = $('<li />',
+        {
+          id: item.id,
+          class: 'file-item',
+          text: item.displayName
+        });
+
+        var date = $('<span />').addClass('thin-text').html('<br /> ' + new Date(item.date).toLocaleString());
+        listItem.append(date);
+
+        if (item.isFolder) {
+          $('<i class="ui-icon ui-icon-folder-open"></i>').prependTo(listItem);
+
+          // If the user clicks a folder, set the hash to the ID
+          listItem.click(function () {
             if (item.isFolder) {
-              $('<i class="ui-icon ui-icon-folder-open"></i>').prependTo(listItem);
+              window.location = '#' + item.id;
+              refreshData();
+            }
+          });
 
-              // If the user clicks a folder, set the hash to the ID
-              listItem.click(function () {
-                if (item.isFolder) {
-                  window.location = '#' + item.id;
+          listItem.droppable({
+            hoverClass: "ui-state-active",
+            drop: function(event, ui) {
+              var destinationId = $(this).attr("id");
+              var moveMethod = ui.draggable.attr("data-move-method");
+              var moveHref = ui.draggable.attr("data-move-href");
+
+              $.ajax({
+                method: moveMethod,
+                url: moveHref,
+                contentType: "application/json",
+                data: JSON.stringify(destinationId),
+                success: function(result) {
+                  alert(result);
                   refreshData();
                 }
               });
+            }
+          });
+        }
+        else {
+          $('<i class="ui-icon ui-icon-document"></i>').prependTo(listItem);
+          var size = $('<span />').addClass('thin-text').html('<br /> ' + item.length + ' bytes');
+          listItem.append(size);
+        }
 
-              listItem.droppable({
-                hoverClass: "ui-state-active",
-                drop: function(event, ui) {
-                  var destinationId = $(this).attr("id");
-                  var moveMethod = ui.draggable.attr("data-move-method");
-                  var moveHref = ui.draggable.attr("data-move-href");
+        var actions = item.actions.filter(function (action) {
+          // If the action is move, then we let the item become draggable & filter it out
+          if (action.name.split("-")[0] == 'move') {
+            listItem.attr('data-move-href', action.href);
+            listItem.attr('data-move-method', action.method);
+            return false;
+          }
+          else {
+            return true;
+          }
+        }).map(function (action) {
+          // All other actions are mapped to buttons
+          var actionIcon;
+          switch (action.name.split("-")[0]) {
+            case 'copy':
+              actionIcon = 'ui-icon-copy';
+              break;
+            case 'download':
+                actionIcon = 'ui-icon-arrowthickstop-1-s';
+                break;
+            case 'delete':
+              actionIcon = 'ui-icon-trash';
+              break;
+          }
 
-                  $.ajax({
-                    method: moveMethod,
-                    url: moveHref,
-                    contentType: "application/json",
-                    data: JSON.stringify(destinationId),
-                    success: function(result) {
-                      alert(result);
-                      refreshData();
-                    }
-                  });
+          var actionClick = function () {
+            // Use AJAX to call all methods, except download
+            if (action.name.split("-")[0] != 'download') {
+              $.ajax({
+                method: action.method,
+                url: action.href,
+                success: function(result) {
+                  alert(result);
+                  refreshData();
                 }
               });
             }
             else {
-              $('<i class="ui-icon ui-icon-document"></i>').prependTo(listItem);
-              var size = $('<span />').addClass('thin-text').html('<br /> ' + item.length + ' bytes');
-              listItem.append(size);
+              window.location = action.href;
             }
+          };
 
-            var actions = item.actions.filter(function (action) {
-              // If the action is move, then we let the item become draggable & filter it out
-              if (action.name.split("-")[0] == 'move') {
-                listItem.attr('data-move-href', action.href);
-                listItem.attr('data-move-method', action.method);
-                return false;
-              }
-              else {
-                return true;
-              }
-            }).map(function (action) {
-              // All other actions are mapped to buttons
-              var actionIcon;
-              switch (action.name.split("-")[0]) {
-                case 'copy':
-                  actionIcon = 'ui-icon-copy';
-                  break;
-                case 'download':
-                    actionIcon = 'ui-icon-arrowthickstop-1-s';
-                    break;
-                case 'delete':
-                  actionIcon = 'ui-icon-trash';
-                  break;
-              }
-
-              var actionClick = function () {
-                // Use AJAX to call all methods, except download
-                if (action.name.split("-")[0] != 'download') {
-                  $.ajax({
-                    method: action.method,
-                    url: action.href,
-                    success: function(result) {
-                      alert(result);
-                      refreshData();
-                    }
-                  });
-                }
-                else {
-                  window.location = action.href;
-                }
-              };
-
-              var actionButton = $('<button />',
-              {
-                title: action.title,
-                click: actionClick,
-              });
-              actionButton.button({ icons: { primary: actionIcon }});
-              actionButton.attr('style', 'float: right');
-              return actionButton;
-            });
-
-            actions.map(function (action) {
-              action.appendTo(listItem);
-            });
-
-            $("#list").append(listItem);
-
-            listItem.draggable();
+          var actionButton = $('<button />',
+          {
+            title: action.title,
+            click: actionClick,
           });
+          actionButton.button({ icons: { primary: actionIcon }});
+          actionButton.attr('style', 'float: right');
+          return actionButton;
+        });
+
+        actions.map(function (action) {
+          action.appendTo(listItem);
+        });
+
+        $("#list").append(listItem);
+
+        listItem.draggable();
       });
     };
 

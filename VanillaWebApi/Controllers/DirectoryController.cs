@@ -107,14 +107,38 @@ namespace VanillaWebApi.Controllers
             var task = Request.Content.ReadAsMultipartAsync(provider).
                 ContinueWith<HttpResponseMessage>(o =>
                 {
+                    //Select the appropriate content item this assumes only 1 part
+                    var fileContent = provider.Contents.SingleOrDefault();
 
-                    string file1 = provider.FileData.First().LocalFileName;
-                    // this is the file name on the server where the file was saved
-
-                    return new HttpResponseMessage()
+                    try
                     {
-                        Content = new StringContent("File uploaded.")
-                    };
+                        if (fileContent != null)
+                        {
+                            var fileName = fileContent.Headers.ContentDisposition.FileName.Replace("\"", string.Empty);
+                            string tempFile = provider.FileData.First().LocalFileName;
+                            var file = new FileInfo(tempFile);
+                            File.Move(file.FullName, rootFolder + "\\" + fileName);
+                        }
+
+                        return new HttpResponseMessage()
+                        {
+                            Content = new StringContent("File uploaded.")
+                        };
+                    }
+                    catch (IOException ex)
+                    {
+                        return new HttpResponseMessage()
+                        {
+                            Content = new StringContent(ex.Message)
+                        };
+                    }
+                    catch (Exception)
+                    {
+                        return new HttpResponseMessage()
+                        {
+                            Content = new StringContent("Something went wrong.")
+                        };
+                    }
                 }
             );
             return task;

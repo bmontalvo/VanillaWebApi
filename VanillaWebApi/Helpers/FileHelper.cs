@@ -42,13 +42,20 @@ namespace VanillaWebApi.Helpers
                 name = "upload-file",
                 title = "Upload File",
                 method = "POST",
-                href = baseUrl + "/file/upload",
+                href = baseUrl + "/directory/home/upload",
                 type = "multipart/form-data",
             };
 
-            // Add the parent directory if we are not on the root folder
-            if (!directory.Equals(RootFolder, StringComparison.InvariantCultureIgnoreCase))
+            // Check if we are on the root folder
+            if (directory.Equals(RootFolder, StringComparison.InvariantCultureIgnoreCase))
             {
+                toReturn.uploadAction.href = baseUrl + "/directory/home/upload";
+            }
+            else
+            {
+                toReturn.uploadAction.href = baseUrl + "/directory/" + directory.Base64Encode() + "/upload";
+
+                // Add parent folder if we are not on the root
                 var identifier = rootDirInfo.Parent.FullName.Base64Encode();
                 var parent = new FileItem
                 {
